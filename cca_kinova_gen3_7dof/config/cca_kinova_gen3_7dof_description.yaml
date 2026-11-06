@@ -6,12 +6,12 @@
     # Core robot parameters
     # ----------------------------------------------------------
 
-    cca_robot: "kinova_gen3_7dof" # Robot name (package typically named cca_<robot>)
+    cca_robot: "scrat2_dual_kinova" # Robot name (package typically named cca_<robot>)
     cca_joint_states_topic: "/joint_states" # Topic to read joint states from
     rviz_fixed_frame: "base_link" # First frame in the URDF, used for visualization
 
     # List of planning groups that will be loaded
-    cca_planning_groups: ["manipulator"] # Groups representing desired kinematic chains for planning. Match names in MoveIt SRDF.
+    cca_planning_groups: ["right_arm"] # Groups representing desired kinematic chains for planning. Match names in MoveIt SRDF.
 
     # ----------------------------------------------------------
     # Configuration for each planning group
@@ -21,22 +21,22 @@
       # -----------------------------
       # Planning group 1
       # -----------------------------
-      manipulator: # Must match an entry in cca_planning_groups, arm is just an example
-        ref_frame: "base_link" # Reference frame for this planning group
+      right_arm: # Must match an entry in cca_planning_groups, arm is just an example
+        ref_frame: "right_base_link" # Reference frame for this planning group
 
         kinematic_chain:
-          base_joint: "joint_1" # Base joint of the kinematic chain
-          end_joint: "joint_7" # End joint of the kinematic chain
+          base_joint: "right_joint_1" # Base joint of the kinematic chain
+          end_joint: "right_joint_7" # End joint of the kinematic chain
 
         end_effector:
-          frame: "end_effector_link" # End-effector frame
-          gripper_joint_name: "robotiq_85_left_knuckle_joint" # Gripper joint name
+          frame: "right_grasp_point_link" # End-effector frame
+          gripper_joint_name: "right_robotiq_85_left_knuckle_joint" # Gripper joint name
 
         tool:
-          frame: "cca_manipulator_tool" # Tool frame representing robot palm (must NOT exist in URDF)
+          frame: "cca_right_arm_tool" # Tool frame representing robot palm (must NOT exist in URDF)
           offset_from_ee_frame: [0.0, 0.0, 0.0] # Tool location expressed in EE frame
 
         # Action servers for execution (robot OR robot_and_gripper must be specified. OK to leave others blank)
-        robot_as: "/joint_trajectory_controller/follow_joint_trajectory" # To execute Robot-only trajectory
+        robot_as: "/right_arm_controller/follow_joint_trajectory" # To execute Robot-only trajectory
         gripper_as: "" # To execute Gripper-only trajectory
         robot_and_gripper_as: "" # Robot and gripper trajectory

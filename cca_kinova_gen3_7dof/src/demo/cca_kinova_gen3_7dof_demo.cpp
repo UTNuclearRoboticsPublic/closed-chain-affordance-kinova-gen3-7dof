@@ -53,17 +53,17 @@ class CcaRobot : public cca_ros::CcaRos
         {
             if (*motion_status_ == cca_ros::Status::UNKNOWN)
             {
-                RCLCPP_ERROR(this->get_logger(), "Motion was interrupted mid-execution.");
+                RCLCPP_ERROR(this->get_node()->get_logger(), "Motion was interrupted mid-execution.");
                 auto current_time = std::chrono::steady_clock::now();
                 if (std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count() > 60)
                 {
-                    RCLCPP_ERROR(this->get_logger(), "Timeout waiting for motion to complete.");
+                    RCLCPP_ERROR(this->get_node()->get_logger(), "Timeout waiting for motion to complete.");
                     return;
                 }
             }
             if (!rclcpp::ok())
             {
-                RCLCPP_ERROR(this->get_logger(), "Exiting due to ROS signal");
+                RCLCPP_ERROR(this->get_node()->get_logger(), "Exiting due to ROS signal");
                 return;
             }
             loop_rate.sleep();
@@ -265,10 +265,10 @@ int main(int argc, char **argv)
     rclcpp::init(argc, argv);
     rclcpp::NodeOptions node_options;
     auto node = std::make_shared<CcaRobot>("cca_ros", node_options);
-    RCLCPP_INFO(node->get_logger(), "CCA Planner is active");
+    RCLCPP_INFO(node->get_node()->get_logger(), "CCA Planner is active");
 
     // Spin the node so joint states can be read
-    std::jthread spinner_thread([node]() { rclcpp::spin(node); });
+    std::jthread spinner_thread([node]() { rclcpp::spin(node->get_node()); });
 
     /// REQUIRED INPUT: Task description. For demo purposes, here, we plan 11 different tasks at once that showcase
     /// various features of the planning framework. For practical purposes, although you can use this approach to plan
@@ -304,12 +304,12 @@ int main(int argc, char **argv)
 
     if (node->run(planning_requests)) ///<-- This is where the planner is called.
     {
-        RCLCPP_INFO(node->get_logger(), "Successfully called CCA action");
+        RCLCPP_INFO(node->get_node()->get_logger(), "Successfully called CCA action");
         node->block_until_trajectory_execution(); // Optionally, block until execution
     }
     else
     {
-        RCLCPP_ERROR(node->get_logger(), "CCA action failed");
+        RCLCPP_ERROR(node->get_node()->get_logger(), "CCA action failed");
         rclcpp::shutdown();
     }
 

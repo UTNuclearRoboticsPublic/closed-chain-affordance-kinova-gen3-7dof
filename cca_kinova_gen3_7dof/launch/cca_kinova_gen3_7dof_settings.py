@@ -42,37 +42,38 @@ def declare_launch_args():
               lists of DeclareLaunchArgument objects
     """
     # ---- ROBOT-SPECIFIC ARGS (Modify as needed) ----
-    robot_args = [
-        # Example: 
-        # DeclareLaunchArgument(
-        #     "has_arm",
-        #     default_value="True",
-        #     choices=["True", "False"],
-        #     description="Include the Spot arm.",
-        # ),
-        DeclareLaunchArgument(
-            "name",
-            description="Name of the robot",
-            choices=["kinova"],
-            default_value="kinova",
-        ),
-        DeclareLaunchArgument(
-            "arm",
-            description="Type/series of robot.",
-            choices=["gen3", "gen3_lite"],
-            default_value="gen3",
-        ),
-        DeclareLaunchArgument(
-            "gripper",
-            default_value="robotiq_2f_85",
-            description="Name of the gripper attached to the arm",
-        ),
-        DeclareLaunchArgument(
-            "dof",
-            default_value="7",
-            description="Robot's dof",
-        ),
-    ]
+    # robot_args = [
+    #     # Example: 
+    #     # DeclareLaunchArgument(
+    #     #     "has_arm",
+    #     #     default_value="True",
+    #     #     choices=["True", "False"],
+    #     #     description="Include the Spot arm.",
+    #     # ),
+    #     DeclareLaunchArgument(
+    #         "name",
+    #         description="Name of the robot",
+    #         choices=["kinova"],
+    #         default_value="kinova",
+    #     ),
+    #     DeclareLaunchArgument(
+    #         "arm",
+    #         description="Type/series of robot.",
+    #         choices=["gen3", "gen3_lite"],
+    #         default_value="gen3",
+    #     ),
+    #     DeclareLaunchArgument(
+    #         "gripper",
+    #         default_value="robotiq_2f_85",
+    #         description="Name of the gripper attached to the arm",
+    #     ),
+    #     DeclareLaunchArgument(
+    #         "dof",
+    #         default_value="7",
+    #         description="Robot's dof",
+    #     ),
+    # ]
+    robot_args=[]
 
     # ---- BASE / SYSTEM ARGS (DO NOT MODIFY) ----
     # These are standard arguments used by launch files
@@ -116,12 +117,12 @@ def define_robot_paths_and_settings():
     """
     return {
         # ---- ROBOT DESCRIPTION - URDF (Modify as needed) ----
-        "urdf_package": "kortex_description", # Example: kinova_gen3_7dof_description
-        "urdf_xacro_path": "robots/kinova.urdf.xacro", # Example: urdf/kinova_gen3_7dof.urdf.xacro
+        "urdf_package": "scrat2_dual_kinova_moveit_config", # Example: kinova_gen3_7dof_description
+        "urdf_xacro_path": "config/scrat2_dual_kinova.urdf.xacro", # Example: urdf/kinova_gen3_7dof.urdf.xacro
         
         # ---- ROBOT DESCRIPTION SEMANTIC  - SRDF (Modify as needed) ----
-        "srdf_package": "kinova_gen3_7dof_robotiq_2f_85_moveit_config", # Example: kinova_gen3_7dof_moveit_config
-        "srdf_path": "config/gen3.srdf", # Example: config/kinova_gen3_7dof.srdf.xacro
+        "srdf_package": "scrat2_dual_kinova_moveit_config", # Example: kinova_gen3_7dof_moveit_config
+        "srdf_path": "config/scrat2_dual_kinova.srdf", # Example: config/kinova_gen3_7dof.srdf.xacro
         
         # SRDF argument reuse options:
         # - "all": Pass all robot_args to SRDF xacro

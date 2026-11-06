@@ -53,17 +53,17 @@ class CcaRobot : public cca_ros::CcaRos
         {
             if (*motion_status_ == cca_ros::Status::UNKNOWN)
             {
-                RCLCPP_ERROR(this->get_logger(), "Motion was interrupted mid-execution.");
+                RCLCPP_ERROR(this->get_node()->get_logger(), "Motion was interrupted mid-execution.");
                 auto current_time = std::chrono::steady_clock::now();
                 if (std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count() > 60)
                 {
-                    RCLCPP_ERROR(this->get_logger(), "Timeout waiting for motion to complete.");
+                    RCLCPP_ERROR(this->get_node()->get_logger(), "Timeout waiting for motion to complete.");
                     return;
                 }
             }
             if (!rclcpp::ok())
             {
-                RCLCPP_ERROR(this->get_logger(), "Exiting due to ROS signal");
+                RCLCPP_ERROR(this->get_node()->get_logger(), "Exiting due to ROS signal");
                 return;
             }
             loop_rate.sleep();
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
     auto node = std::make_shared<CcaRobot>("cca_ros", node_options);
 
     // Spin the node so joint states can be read
-    std::jthread spinner_thread([node]() { rclcpp::spin(node); });
+    std::jthread spinner_thread([node]() {rclcpp::spin(node->get_node()); });
 
     /// REQUIRED INPUT: Task description. For quick start, the following block provides an example task description to
     /// do a simple linear motion along the z-axis from the current robot configuration. Edit as needed. See this
@@ -105,13 +105,13 @@ int main(int argc, char **argv)
     // Run CCA planner and executor
     if (node->run(req))
     {
-        RCLCPP_INFO(node->get_logger(), "Successfully executed %s tasks", req.planning_group.c_str());
+        RCLCPP_INFO(node->get_node()->get_logger(), "Successfully executed %s tasks", req.planning_group.c_str());
         node->block_until_trajectory_execution(); // Optionally, block until execution
 
     }
     else
     {
-        RCLCPP_ERROR(node->get_logger(), "CCA action failed for the %s group", req.planning_group.c_str());
+        RCLCPP_ERROR(node->get_node()->get_logger(), "CCA action failed for the %s group", req.planning_group.c_str());
     }
 
     ///------------------------------------------------------------------///
