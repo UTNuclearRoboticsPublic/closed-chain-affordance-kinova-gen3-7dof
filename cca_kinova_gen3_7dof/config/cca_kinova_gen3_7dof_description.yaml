@@ -34,7 +34,7 @@
 
         tool:
           frame: "cca_right_arm_tool" # Tool frame representing robot palm (must NOT exist in URDF)
-          offset_from_ee_frame: [0.0, 0.0, 0.0] # Tool location expressed in EE frame
+          offset_from_ee_frame: [-0.10, -0.10, -0.10] # Tool location expressed in EE frame
 
         # Action servers for execution (robot OR robot_and_gripper must be specified. OK to leave others blank)
         robot_as: "/right_arm_controller/follow_joint_trajectory" # To execute Robot-only trajectory

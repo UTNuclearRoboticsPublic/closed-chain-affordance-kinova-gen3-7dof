@@ -73,7 +73,31 @@ def declare_launch_args():
     #         description="Robot's dof",
     #     ),
     # ]
-    robot_args=[]
+    # These are forwarded to the scrat2 xacro. They MUST match what
+    # scrat2_dual_kinova_moveit_config/launch/robot.launch.py passes on the real robot,
+    # otherwise CCA plans against a different model (xacro defaults are the Ignition sim).
+    robot_args = [
+        DeclareLaunchArgument(
+            "sim_ignition",
+            default_value="false",
+            description="Must match robot.launch.py sim_ignition.",
+        ),
+        DeclareLaunchArgument(
+            "vision",
+            default_value="true",
+            description="Must match robot.launch.py vision (camera frames in URDF).",
+        ),
+        DeclareLaunchArgument(
+            "use_fake_hardware",
+            default_value="false",
+            description="Must match robot.launch.py use_fake_hardware.",
+        ),
+        DeclareLaunchArgument(
+            "right_gripper",
+            default_value="robotiq_2f_85",
+            description="Must match robot.launch.py right_gripper.",
+        ),
+    ]
 
     # ---- BASE / SYSTEM ARGS (DO NOT MODIFY) ----
     # These are standard arguments used by launch files
