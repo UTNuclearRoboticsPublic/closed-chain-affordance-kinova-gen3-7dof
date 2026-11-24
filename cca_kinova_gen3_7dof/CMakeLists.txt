@@ -43,8 +43,10 @@ add_executable(cca_pose_service
 
 ament_target_dependencies(cca_pose_service
   rclcpp
-  cca_ros
+  sensor_msgs
   geometry_msgs
+  cca_ros
+  cc_affordance_planner
 )
 
 target_link_libraries(cca_pose_service

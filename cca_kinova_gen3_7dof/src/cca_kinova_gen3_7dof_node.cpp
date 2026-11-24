@@ -1,120 +1,254 @@
-/*************************************/
-// Author: Crasun Jans
-// Description:
-// This node enables users to plan, visualize, and execute robot joint trajectories for specified tasks. The planning
-// process utilizes the Closed-chain Affordance model, as described in the paper:
-// "A closed-chain approach to generating affordance joint trajectories for robotic manipulators."
-//
-// Usage Instructions:
-// 1. The framework requires only two inputs: planner configuration and task description. See repo README.md Task
-// Examples section for task-description examples.
-/*************************************/
-#include "rclcpp/rclcpp.hpp"
+/*
+ * Programmatic CCA Cartesian Goal Planner
+ *
+ * Uses the intended CCA ROS interface:
+ *     cca_ros::CcaRos::plan(PlanningRequest)
+ *
+ * No custom ROS service is involved.
+ *
+ * Goal coordinates are expressed in the planning group's configured
+ * reference frame. For this SCRAT2 configuration:
+ *     planning group: right_arm
+ *     reference frame: right_base_link
+ */
+
+#include <chrono>
+#include <cmath>
+#include <memory>
+#include <thread>
+
 #include <Eigen/Core>
+#include <Eigen/Geometry>
+
+#include <rclcpp/rclcpp.hpp>
+
 #include <affordance_util/affordance_util.hpp>
 #include <cc_affordance_planner/cc_affordance_planner.hpp>
 #include <cc_affordance_planner/cc_affordance_planner_interface.hpp>
 #include <cca_ros/cca_ros.hpp>
-#include <chrono>
-#include <thread>
 
-class CcaRobot : public cca_ros::CcaRos
-{
-  public:
-    explicit CcaRobot(const std::string &node_name, const rclcpp::NodeOptions &node_options)
-        : cca_ros::CcaRos(node_name, node_options)
-    {
-    }
 
-    // Function to run the planner for a given task and/or execute that task on the robot
-    bool run(const cca_ros::PlanningRequest &planning_request)
-    {
+// ============================================================
+// USER CONFIGURATION: EDIT YOUR CARTESIAN GOAL HERE
+// ============================================================
 
-	cca_ros::PlanningResponse response = this->plan(planning_request);
-        motion_status_ = response.status;
-	return response.result.success;
-    }
-    // Function overload to plan multiple tasks at once
-    bool run(const std::vector<cca_ros::PlanningRequest> &planning_requests)
-    {
+// Target position in right_base_link, in meters.
+constexpr double GOAL_X = 0.40;
+constexpr double GOAL_Y = -0.30;
+constexpr double GOAL_Z = 0.48;
 
-	cca_ros::PlanningResponse response = this->plan(planning_requests);
-        motion_status_ = response.status;
-	return response.result.success;
-    }
+// Target orientation as a quaternion (x, y, z, w).
+// This example is identity orientation.
+// Replace with your desired normalized quaternion.
+constexpr double GOAL_QX = 0.99;
+constexpr double GOAL_QY = -0.11;
+constexpr double GOAL_QZ = 0.0;
+constexpr double GOAL_QW = 0.02;
 
-    // Function to block until the robot completes the planned trajectory
-    void block_until_trajectory_execution()
-    {
-        rclcpp::Rate loop_rate(4);
-        auto start_time = std::chrono::steady_clock::now();
+// false: plan and visualize, but do not move the robot.
+// true: plan, validate, and execute the trajectory.
+constexpr bool EXECUTE_TRAJECTORY = true;
 
-        while (*motion_status_ != cca_ros::Status::SUCCEEDED)
-        {
-            if (*motion_status_ == cca_ros::Status::UNKNOWN)
-            {
-                RCLCPP_ERROR(this->get_node()->get_logger(), "Motion was interrupted mid-execution.");
-                auto current_time = std::chrono::steady_clock::now();
-                if (std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count() > 60)
-                {
-                    RCLCPP_ERROR(this->get_node()->get_logger(), "Timeout waiting for motion to complete.");
-                    return;
-                }
-            }
-            if (!rclcpp::ok())
-            {
-                RCLCPP_ERROR(this->get_node()->get_logger(), "Exiting due to ROS signal");
-                return;
-            }
-            loop_rate.sleep();
-        }
-    }
+// CCA planning settings.
+constexpr int TRAJECTORY_DENSITY = 20;
+constexpr int IK_MAX_ITERATIONS = 1000;
+constexpr double PLANNING_ACCURACY = 0.10;
 
-  private:
-    std::shared_ptr<cca_ros::Status> motion_status_;
-};
+
+// ============================================================
+// CCA NODE
+// ============================================================
 
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
+
     rclcpp::NodeOptions node_options;
-    auto node = std::make_shared<CcaRobot>("cca_ros", node_options);
 
-    // Spin the node so joint states can be read
-    std::jthread spinner_thread([node]() {rclcpp::spin(node->get_node()); });
+    // CcaRos loads the robot-specific planning group and kinematic
+    // configuration from the parameters supplied by the launch file.
+    auto cca = std::make_shared<cca_ros::CcaRos>(
+        "cca_ros", node_options);
 
-    /// REQUIRED INPUT: Task description. For quick start, the following block provides an example task description to
-    /// do a simple linear motion along the z-axis from the current robot configuration. Edit as needed. See this
-    /// package's demo folder or repo README.md for various other examples that cover motions including rotation, screw,
-    /// cartesian goal, ee orientation jog, etc. It is also possible to plan multiple of these tasks together as a long
-    /// joint trajectory.
-    ///------------------------------------------------------------------///
-    cca_ros::PlanningRequest req;
-    req.planning_group = "manipulator";
+    auto logger = cca->get_node()->get_logger();
 
-    // Task description
-    // Specify planning type
-    req.task_description = cc_affordance_planner::TaskDescription(cc_affordance_planner::PlanningType::AFFORDANCE);
-    // Affordance info
-    req.task_description.affordance_info.type = affordance_util::ScrewType::TRANSLATION;
-    req.task_description.affordance_info.axis = affordance_util::axis_to_vec(affordance_util::Axis::Z);
-    req.task_description.affordance_info.location = affordance_util::axis_to_vec(affordance_util::Axis::ORIGIN);
-    // Goal
-    req.task_description.goal.affordance = 0.1; // 10cm
+    RCLCPP_INFO(logger, "CCA Cartesian goal planner started.");
 
-    // Run CCA planner and executor
-    if (node->run(req))
+    // CcaRos needs its ROS node spinning to receive joint states,
+    // TF information, and other ROS callbacks.
+    std::jthread spinner_thread(
+        [cca]()
+        {
+            rclcpp::spin(cca->get_node());
+        });
+
+    // --------------------------------------------------------
+    // Validate the requested orientation.
+    // --------------------------------------------------------
+
+    Eigen::Quaterniond target_orientation(
+        GOAL_QW,
+        GOAL_QX,
+        GOAL_QY,
+        GOAL_QZ);
+
+    if (!std::isfinite(target_orientation.norm()) ||
+        target_orientation.norm() < 1e-8)
     {
-        RCLCPP_INFO(node->get_node()->get_logger(), "Successfully executed %s tasks", req.planning_group.c_str());
-        node->block_until_trajectory_execution(); // Optionally, block until execution
+        RCLCPP_ERROR(logger, "Invalid target quaternion.");
+        rclcpp::shutdown();
+        return 1;
+    }
 
+    target_orientation.normalize();
+
+    // --------------------------------------------------------
+    // Construct the CCA planning request.
+    // --------------------------------------------------------
+
+    cca_ros::PlanningRequest request;
+
+    request.planning_group = "right_arm";
+
+    request.task_description =
+        cc_affordance_planner::TaskDescription(
+            cc_affordance_planner::PlanningType::CARTESIAN_GOAL);
+
+    // CCA expects a homogeneous transform representing the
+    // desired Cartesian pose.
+    //
+    // The transform is expressed in the configured reference
+    // frame: right_base_link for this planning group.
+    request.task_description.goal.canonical_pose =
+        Eigen::Matrix4d::Identity();
+
+    request.task_description.goal.canonical_pose
+        .block<3, 3>(0, 0) =
+            target_orientation.toRotationMatrix();
+
+    request.task_description.goal.canonical_pose
+        .block<3, 1>(0, 3) =
+            Eigen::Vector3d(GOAL_X, GOAL_Y, GOAL_Z);
+
+    request.task_description.trajectory_density =
+        TRAJECTORY_DENSITY;
+
+    // Optional planner configuration.
+    request.planner_config.ik_max_itr =
+        IK_MAX_ITERATIONS;
+
+    request.planner_config.accuracy =
+        PLANNING_ACCURACY;
+
+    // Use CCA's automatically retrieved current robot state.
+    // Do not populate request.start_state manually.
+    request.visualize_trajectory = true;
+    request.execute_trajectory = EXECUTE_TRAJECTORY;
+
+    request.execution_timeout = std::chrono::seconds(90);
+
+    // --------------------------------------------------------
+    // Print the requested goal.
+    // --------------------------------------------------------
+
+    RCLCPP_INFO(
+        logger,
+        "Planning Cartesian goal for group: %s",
+        request.planning_group.c_str());
+
+    RCLCPP_INFO(
+        logger,
+        "Goal position in right_base_link: "
+        "[%.4f, %.4f, %.4f]",
+        GOAL_X, GOAL_Y, GOAL_Z);
+
+    RCLCPP_INFO(
+        logger,
+        "Goal quaternion (x,y,z,w): "
+        "[%.4f, %.4f, %.4f, %.4f]",
+        target_orientation.x(),
+        target_orientation.y(),
+        target_orientation.z(),
+        target_orientation.w());
+
+    RCLCPP_INFO(
+        logger,
+        "Execute trajectory: %s",
+        EXECUTE_TRAJECTORY ? "true" : "false");
+
+    // --------------------------------------------------------
+    // Call CCA directly.
+    // --------------------------------------------------------
+
+    RCLCPP_INFO(logger, "Calling CCA planner...");
+
+    cca_ros::PlanningResponse response = cca->plan(request);
+
+    if (!response.result.success)
+    {
+        RCLCPP_ERROR(
+            logger,
+            "CCA planning/validation/execution request failed.");
+
+        rclcpp::shutdown();
+        return 1;
+    }
+
+    RCLCPP_INFO(logger, "CCA returned a successful result.");
+
+    // --------------------------------------------------------
+    // Wait for execution to finish if execution was requested.
+    // --------------------------------------------------------
+
+    if (EXECUTE_TRAJECTORY)
+    {
+        RCLCPP_INFO(logger, "Waiting for robot execution...");
+
+        const auto start_time = std::chrono::steady_clock::now();
+        const auto timeout = std::chrono::seconds(65);
+
+        while (rclcpp::ok())
+        {
+            const cca_ros::Status status = *response.status;
+
+            if (status == cca_ros::Status::SUCCEEDED)
+            {
+                RCLCPP_INFO(
+                    logger,
+                    "CCA trajectory execution completed successfully.");
+                break;
+            }
+
+            if (status == cca_ros::Status::FAILED)
+            {
+                RCLCPP_ERROR(
+                    logger,
+                    "CCA trajectory execution failed.");
+                rclcpp::shutdown();
+                return 1;
+            }
+
+            if (std::chrono::steady_clock::now() - start_time > timeout)
+            {
+                RCLCPP_ERROR(
+                    logger,
+                    "Timed out waiting for CCA execution.");
+                cca->cancel_execution();
+                rclcpp::shutdown();
+                return 1;
+            }
+
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(250));
+        }
     }
     else
     {
-        RCLCPP_ERROR(node->get_node()->get_logger(), "CCA action failed for the %s group", req.planning_group.c_str());
+        RCLCPP_INFO(
+            logger,
+            "Planning and visualization completed. "
+            "Robot was not commanded to move.");
     }
-
-    ///------------------------------------------------------------------///
 
     rclcpp::shutdown();
     return 0;
